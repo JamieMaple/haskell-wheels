@@ -63,7 +63,6 @@ instance MonadTrans MaybeT where
  -}
 newtype Identity a = Identity { runIdentity :: a } deriving Show
 
-
 instance Functor Identity where
     --fmap f m = do
         --v <- m
@@ -106,9 +105,27 @@ instance (Monad m) => Monad (IdentityT m) where
 -- reader
 newtype ReaderT r m a = ReaderT { runReaderT :: r -> m a }
 
+instance Functor m => Functor (ReaderT r m) where
+    fmap f m = ReaderT (\r -> fmap f $ runReaderT m r)
+
+instance Applicative m => Applicative (ReaderT r m) where
+    pure m = ReaderT $ \_ -> pure m
+    mf <*> m = ReaderT $ \r ->
+        runReaderT mf r <*> runReaderT m r
+
+-- two ReaderT should recive same type param
+-- x type should equal to f param type
+--
+instance Monad m => Monad (ReaderT r m) where
+    return x = ReaderT $ \_ -> return x
+    m >>= f = ReaderT $ \r -> runReaderT m r
+            >>= \x -> runReaderT (f x) r
+    --m >>= f = ReaderT $ \r -> do
+       --x <- runReaderT m r 
+       --runReaderT (f x) r
+
+
 type Reader r = ReaderT r Identity
-
-
 -- state
 -- writer
 

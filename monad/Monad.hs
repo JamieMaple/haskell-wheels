@@ -1,3 +1,6 @@
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}   -- Enable the language extensions.
+
 module Monad where
 
 {-
@@ -15,7 +18,7 @@ liftM f m = m >>= (\a -> return . f $ a)
 {-
  -monad reader
  -}
-class Monad m => MonadReader r m where
+class Monad m => MonadReader r m | r -> m where
     ask :: m r
     local :: (r -> r) -> m a -> m a
     reader :: (r -> a) -> m a
