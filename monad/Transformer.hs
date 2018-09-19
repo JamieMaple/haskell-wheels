@@ -124,8 +124,35 @@ instance Monad m => Monad (ReaderT r m) where
        --x <- runReaderT m r 
        --runReaderT (f x) r
 
-
 type Reader r = ReaderT r Identity
+
 -- state
+
+newtype StateT s m a = StateT { runStateT :: s -> m (a, s) }
+
+instance Functor m => Functor (StateT s m) where
+    fmap f m = StateT $ \ s -> 
+        fmap (\(a, s') -> (f a, s')) $ runStateT m s
+
+instance (Functor m, Monad m) => Applicative (StateT s m) where
+    pure a = StateT $ \s -> pure (a,s)
+    mf <*> m = StateT $ \s -> do
+        (f,s') <- runStateT mf s
+        (v,s'') <- runStateT m s'
+        return (f v, s'')
+
+instance Monad m => Monad (StateT s m) where
+    return a = StateT $ \s -> return (a, s)
+    m >>= f = StateT $ \s -> do
+        (a,s') <- runStateT m s
+        runStateT (f a) s'
+        --(b,s'') <- runStateT (f a) s'
+        --return (b, s'')
+        --
+
+type State s = StateT s Identity
+
+
+
 -- writer
 
