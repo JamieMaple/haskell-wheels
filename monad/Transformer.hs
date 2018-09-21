@@ -2,6 +2,8 @@ module Transformer where
 
 import Monad
 
+import Control.Applicative
+
 {-
  -MaybeT monad transformer
  -}
@@ -78,6 +80,18 @@ instance Applicative Identity where
     mf <*> m = Identity $ (runIdentity mf) (runIdentity m)
     --
 
+mapIdentity :: (a -> a) -> Identity a -> Identity a
+mapIdentity f = Identity . f . runIdentity
+
+instance Num a => Num (Identity a) where
+    (Identity a) * (Identity b) = Identity $ a * b
+    (Identity a) + (Identity b) = Identity $ a + b
+    (Identity a) - (Identity b) = Identity $ a - b
+    abs = mapIdentity abs
+    signum = mapIdentity signum
+    negate = mapIdentity negate
+    fromInteger = Identity . fromInteger
+
 instance Monad Identity where
     return = Identity
     m >>= f = f . runIdentity $ m
@@ -102,6 +116,9 @@ instance (Monad m) => Monad (IdentityT m) where
         mapIdentity f v
         where mapIdentity f (Identity m) = runIdentityT $ f m
 
+instance MonadTrans IdentityT where
+    lift = IdentityT . liftM Identity
+
 -- reader
 newtype ReaderT r m a = ReaderT { runReaderT :: r -> m a }
 
@@ -123,8 +140,25 @@ instance Monad m => Monad (ReaderT r m) where
     --m >>= f = ReaderT $ \r -> do
        --x <- runReaderT m r 
        --runReaderT (f x) r
+       --
+
+instance MonadTrans (ReaderT r) where
+    lift m = ReaderT $ \r -> m
 
 type Reader r = ReaderT r Identity
+
+runReader :: Reader r a -> (r -> a)
+runReader m = runIdentity . runReaderT m
+
+ask :: Monad m => ReaderT r m r
+ask = ReaderT return
+
+local :: Monad m => (r -> r') -> ReaderT r' m a -> ReaderT r m a
+--local f m = ReaderT $ runReaderT m . f
+local f m = ReaderT $ \r -> runReaderT m $ f r
+
+reader :: (r -> a) -> Reader r a
+reader f = ReaderT $ \r -> return $ f r -- return == Identity
 
 -- state
 
@@ -150,9 +184,46 @@ instance Monad m => Monad (StateT s m) where
         --return (b, s'')
         --
 
+instance MonadTrans (StateT s) where
+    lift m = StateT $ \s -> do
+        v <- m
+        return (v, s)
+
 type State s = StateT s Identity
 
+runState :: State s a -> (s -> (a,s))
+--runState m = \s -> runIdentity $ runStateT m s
+runState m = runIdentity . runStateT m
 
+state :: (s -> (a,s)) -> StateT s Identity a
+state f = StateT $ \s -> Identity $ f s -- Identity == return
+
+get :: Monad m => StateT s m s
+get = StateT $ \s -> return (s,s)
 
 -- writer
+newtype WriterT w m a = WriterT { runWriterT :: m (a, w) }
+
+instance Functor m => Functor (WriterT w m) where
+    fmap f m = WriterT $ fmap mapWriter (runWriterT m)
+        where mapWriter = (\(a,w) -> (f a, w))
+
+instance (Applicative m, Monoid w) => Applicative (WriterT w m) where
+    pure a = WriterT $ pure (a, mempty)
+    --mf <*> m = WriterT $ do
+        --(f, w) <- runWriterT mf
+        --(v, w') <- runWriterT m
+        --return (f v, w `mappend` w')
+    mf <*> m = WriterT $ liftA2 g (runWriterT mf) (runWriterT m)
+        where g (f,w) (a,w') = (f a, w `mappend` w')
+
+instance (Monad m, Monoid w) => Monad (WriterT w m) where
+    return a = WriterT $ return (a, mempty)
+    m >>= f = WriterT $ do
+        (a, w) <- runWriterT m
+        (a', _) <- runWriterT $ f a
+        return (a', w)
+
+instance Monoid w => MonadTrans (WriterT w) where
+    lift m = WriterT $ liftM (\a -> (a, mempty)) m
 

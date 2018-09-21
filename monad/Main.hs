@@ -1,3 +1,4 @@
+import Monad
 import Transformer
 
 maybeFoo :: MaybeT [] Int
