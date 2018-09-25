@@ -227,3 +227,26 @@ instance (Monad m, Monoid w) => Monad (WriterT w m) where
 instance Monoid w => MonadTrans (WriterT w) where
     lift m = WriterT $ liftM (\a -> (a, mempty)) m
 
+
+-- EitherT
+newtype EitherT a m b = EitherT { runEitherT :: m (Either a b) }
+
+instance Functor m => Functor (EitherT a m) where
+    fmap f m = EitherT (fmap (fmap f) (runEitherT m))
+
+instance Applicative m => Applicative (EitherT a m) where
+    pure = EitherT . pure . Right
+    mf <*> m = EitherT $ liftA2 k (runEitherT mf) (runEitherT m)
+        where k (Right f) (Right v) = Right $ f v
+
+instance Monad m => Monad (EitherT a m) where
+    return = EitherT . return . Right
+    m >>= f = EitherT $ do
+        v <- runEitherT m
+        case v of
+            (Left a) -> return (Left a)
+            (Right b) -> runEitherT $ f b
+
+instance MonadTrans (EitherT a) where
+    lift m = EitherT $ liftM Right m
+
